@@ -8,63 +8,69 @@ router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check that email and password were provided
-    if (!email || !password) {
+    if (typeof email !== "string" || typeof password !== "string") {
       return res.status(400).json({
-        message: "Email and password are required"
+        message: "Email and password must be text values.",
       });
     }
 
-    // Find the user
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail || !password) {
+      return res.status(400).json({
+        message: "Email and password are required.",
+      });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({
+        message: "Enter a valid email address.",
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters.",
+      });
+    }
+
     const result = await pool.query(
       `
-      SELECT
-        id,
-        name,
-        email,
-        password_hash
+      SELECT id, name, email, password_hash
       FROM users
       WHERE email = $1
       `,
-      [email]
+      [normalizedEmail]
     );
 
-    // User doesn't exist
     if (result.rows.length === 0) {
       return res.status(401).json({
-        message: "Invalid email or password"
+        message: "Invalid email or password.",
       });
     }
 
     const user = result.rows[0];
-
-    // Check password
-    const passwordMatch = await bcrypt.compare(
-      password,
-      user.password_hash
-    );
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
 
     if (!passwordMatch) {
       return res.status(401).json({
-        message: "Invalid email or password"
+        message: "Invalid email or password.",
       });
     }
 
-    // Login successful
     res.json({
-      message: "Login successful",
+      message: "Login successful.",
       user: {
         id: user.id,
         name: user.name,
-        email: user.email
-      }
+        email: user.email,
+      },
     });
-
   } catch (error) {
-    console.error(error);
+    console.error("Login failed:", error);
 
     res.status(500).json({
-      message: "Login failed"
+      message: "Login failed. Please try again later.",
     });
   }
 });

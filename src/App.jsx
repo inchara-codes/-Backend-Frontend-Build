@@ -34,8 +34,20 @@ function App() {
     event.preventDefault()
     setError('')
 
-    if (!email || !password) {
+    const normalizedEmail = email.trim().toLowerCase()
+
+    if (!normalizedEmail || !password) {
       setError('Email and password are required.')
+      return
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError('Enter a valid email address.')
+      return
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
       return
     }
 
@@ -47,7 +59,7 @@ function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: normalizedEmail, password }),
       })
 
       const data = await response.json()
@@ -150,6 +162,7 @@ function App() {
           <input
             id="email"
             type="email"
+            required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="you@example.com"
@@ -159,6 +172,7 @@ function App() {
           <input
             id="password"
             type="password"
+            required
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             placeholder="Enter your password"
@@ -313,4 +327,4 @@ function App() {
   )
 }
 
-export default App
+export default App;

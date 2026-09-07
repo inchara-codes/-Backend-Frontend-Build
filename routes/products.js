@@ -72,6 +72,12 @@ router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (!/^\d+$/.test(id) || Number(id) < 1) {
+  return res.status(400).json({
+    message: "Product ID must be a positive whole number.",
+  });
+}
+
     const result = await pool.query(
       `
       SELECT
