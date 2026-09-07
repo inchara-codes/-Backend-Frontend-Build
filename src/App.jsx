@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 
+const PRODUCTS_PER_PAGE = 8
+
 function App() {
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('user')
@@ -15,6 +17,8 @@ function App() {
   const [products, setProducts] = useState([])
   const [productsLoading, setProductsLoading] = useState(false)
   const [productsError, setProductsError] = useState('')
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState(null)
 
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [productDetailLoading, setProductDetailLoading] = useState(false)
@@ -24,7 +28,7 @@ function App() {
     if (user) {
       fetchProducts()
     }
-  }, [user])
+  }, [user, page])
 
   async function handleLogin(event) {
     event.preventDefault()
@@ -56,6 +60,7 @@ function App() {
       localStorage.setItem('user', JSON.stringify(data.user))
       setUser(data.user)
       setPassword('')
+      setPage(1)
     } catch {
       setError('Cannot connect to the server. Please try again.')
     } finally {
@@ -68,16 +73,20 @@ function App() {
       setProductsLoading(true)
       setProductsError('')
 
-      const response = await fetch('http://localhost:3000/products')
-
-      if (!response.ok) {
-        throw new Error('Could not load products.')
-      }
+      const response = await fetch(
+        `http://localhost:3000/products?page=${page}&limit=${PRODUCTS_PER_PAGE}`
+      )
 
       const data = await response.json()
-      setProducts(data)
-    } catch {
-      setProductsError('Could not load products. Please try again.')
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not load products.')
+      }
+
+      setProducts(data.products)
+      setPagination(data.pagination)
+    } catch (error) {
+      setProductsError(error.message || 'Could not load products.')
     } finally {
       setProductsLoading(false)
     }
@@ -93,15 +102,16 @@ function App() {
         `http://localhost:3000/products/${productId}`
       )
 
+      const data = await response.json()
+
       if (!response.ok) {
-        throw new Error('Could not load product details.')
+        throw new Error(data.message || 'Could not load product details.')
       }
 
-      const data = await response.json()
       setSelectedProduct(data)
-    } catch {
+    } catch (error) {
       setProductDetailError(
-        'Could not load product details. Please go back and try again.'
+        error.message || 'Could not load product details. Please try again.'
       )
     } finally {
       setProductDetailLoading(false)
@@ -112,7 +122,21 @@ function App() {
     localStorage.removeItem('user')
     setUser(null)
     setProducts([])
+    setPagination(null)
     setSelectedProduct(null)
+    setPage(1)
+  }
+
+  function goToPreviousPage() {
+    if (pagination?.hasPreviousPage) {
+      setPage((currentPage) => currentPage - 1)
+    }
+  }
+
+  function goToNextPage() {
+    if (pagination?.hasNextPage) {
+      setPage((currentPage) => currentPage + 1)
+    }
   }
 
   if (!user) {
@@ -234,33 +258,59 @@ function App() {
         !productsLoading &&
         !productsError &&
         products.length > 0 && (
-          <section className="product-grid">
-            {products.map((product) => (
-              <article className="product-card" key={product.id}>
-                <button
-                  className="product-card-button"
-                  onClick={() => openProduct(product.id)}
-                >
-                  <img
-                    src={product.image_url}
-                    alt={product.name}
-                    onError={(event) => {
-                      event.currentTarget.src =
-                        'https://placehold.co/400x300?text=No+image'
-                    }}
-                  />
+          <>
+            <section className="product-grid">
+              {products.map((product) => (
+                <article className="product-card" key={product.id}>
+                  <button
+                    className="product-card-button"
+                    onClick={() => openProduct(product.id)}
+                  >
+                    <img
+                      src={product.image_url}
+                      alt={product.name}
+                      onError={(event) => {
+                        event.currentTarget.src =
+                          'https://placehold.co/400x300?text=No+image'
+                      }}
+                    />
 
-                  <div className="product-card-content">
-                    <h2>{product.name}</h2>
-                    <p>${Number(product.price).toFixed(2)}</p>
-                  </div>
+                    <div className="product-card-content">
+                      <h2>{product.name}</h2>
+                      <p>${Number(product.price).toFixed(2)}</p>
+                    </div>
+                  </button>
+                </article>
+              ))}
+            </section>
+
+            {pagination && (
+              <nav className="pagination" aria-label="Product pages">
+                <button
+                  type="button"
+                  onClick={goToPreviousPage}
+                  disabled={!pagination.hasPreviousPage}
+                >
+                  Previous
                 </button>
-              </article>
-            ))}
-          </section>
+
+                <span>
+                  Page {pagination.page} of {pagination.totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={goToNextPage}
+                  disabled={!pagination.hasNextPage}
+                >
+                  Next
+                </button>
+              </nav>
+            )}
+          </>
         )}
     </main>
   )
 }
 
-export default App;
+export default App
