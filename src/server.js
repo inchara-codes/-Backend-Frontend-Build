@@ -6,13 +6,14 @@ require("dotenv").config();
 const pool = require("./db");
 const productsRouter = require("../routes/products");
 const authRoutes = require("../routes/auth");
+const authMiddleware = require("../middleware/authMiddleware");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-app.use("/products", productsRouter);
+app.use("/products", authMiddleware, productsRouter);
 app.use("/auth", authRoutes);
 
 app.get("/", (req, res) => {
