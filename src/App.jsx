@@ -219,7 +219,7 @@ function App() {
         <button onClick={handleLogout}>Sign out</button>
       </header>
 
-      {productsLoading && <p>Loading products...</p>}
+      {productsLoading && !selectedProduct && <ProductGridSkeleton />}
 
       {productsError && (
         <div>
@@ -232,7 +232,7 @@ function App() {
         <p>No products available yet.</p>
       )}
 
-      {productDetailLoading && <p>Loading product details...</p>}
+      {productDetailLoading && <ProductDetailSkeleton />}
 
       {productDetailError && (
         <div>
@@ -344,6 +344,43 @@ function App() {
           </>
         )}
     </main>
+  )
+}
+
+function ProductDetailSkeleton() {
+  return (
+    <section className="product-detail" aria-label="Loading product details">
+      <div className="skeleton skeleton-back-button" />
+
+      <div className="product-detail-content">
+        <div className="skeleton skeleton-detail-image" />
+
+        <div className="detail-skeleton-content">
+          <div className="skeleton skeleton-detail-title" />
+          <div className="skeleton skeleton-detail-price" />
+          <div className="skeleton skeleton-detail-line" />
+          <div className="skeleton skeleton-detail-line" />
+          <div className="skeleton skeleton-detail-line short-line" />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ProductGridSkeleton() {
+  return (
+    <section className="product-grid" aria-label="Loading products">
+      {Array.from({ length: PRODUCTS_PER_PAGE }).map((_, index) => (
+        <article className="product-card skeleton-card" key={index}>
+          <div className="skeleton skeleton-image" />
+
+          <div className="product-card-content">
+            <div className="skeleton skeleton-title" />
+            <div className="skeleton skeleton-price" />
+          </div>
+        </article>
+      ))}
+    </section>
   )
 }
 
