@@ -8,6 +8,9 @@ function App() {
     const savedUser = localStorage.getItem('user')
     return savedUser ? JSON.parse(savedUser) : null
   })
+  const [token, setToken] = useState(() => {
+    return localStorage.getItem('token')
+  })
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -25,10 +28,10 @@ function App() {
   const [productDetailError, setProductDetailError] = useState('')
 
   useEffect(() => {
-    if (user) {
+    if (user && token) {
       fetchProducts()
     }
-  }, [user, page])
+  }, [user, token, page])
 
   async function handleLogin(event) {
     event.preventDefault()
@@ -70,7 +73,10 @@ function App() {
       }
 
       localStorage.setItem('user', JSON.stringify(data.user))
+      localStorage.setItem('token', data.token)
+
       setUser(data.user)
+      setToken(data.token)
       setPassword('')
       setPage(1)
     } catch {
@@ -86,7 +92,12 @@ function App() {
       setProductsError('')
 
       const response = await fetch(
-        `http://localhost:3000/products?page=${page}&limit=${PRODUCTS_PER_PAGE}`
+        `http://localhost:3000/products?page=${page}&limit=${PRODUCTS_PER_PAGE}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       )
 
       const data = await response.json()
@@ -111,7 +122,12 @@ function App() {
       setSelectedProduct(null)
 
       const response = await fetch(
-        `http://localhost:3000/products/${productId}`
+        `http://localhost:3000/products/${productId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       )
 
       const data = await response.json()
@@ -132,7 +148,9 @@ function App() {
 
   function handleLogout() {
     localStorage.removeItem('user')
+    localStorage.removeItem('token')
     setUser(null)
+    setToken(null)
     setProducts([])
     setPagination(null)
     setSelectedProduct(null)
@@ -151,7 +169,7 @@ function App() {
     }
   }
 
-  if (!user) {
+  if (!user || !token) {
     return (
       <main className="login-page">
         <form className="login-card" onSubmit={handleLogin}>
@@ -162,6 +180,7 @@ function App() {
           <input
             id="email"
             type="email"
+            autoComplete="email"
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
@@ -172,6 +191,7 @@ function App() {
           <input
             id="password"
             type="password"
+            autoComplete="current-password"
             required
             value={password}
             onChange={(event) => setPassword(event.target.value)}

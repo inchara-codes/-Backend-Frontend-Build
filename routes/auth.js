@@ -1,5 +1,6 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
 
 const router = express.Router();
 const pool = require("../src/db");
@@ -34,6 +35,10 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET is not configured.");
+    }
+
     const result = await pool.query(
       `
       SELECT id, name, email, password_hash
@@ -58,8 +63,21 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    const token = jwt.sign(
+      {
+        sub: user.id,
+        email: user.email,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "1h",
+        algorithm: "HS256",
+      }
+    );
+
     res.json({
       message: "Login successful.",
+      token,
       user: {
         id: user.id,
         name: user.name,
