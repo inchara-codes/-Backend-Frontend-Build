@@ -102,6 +102,12 @@ function App() {
 
       const data = await response.json()
 
+      if (response.status === 401) {
+        handleLogout()
+        setError('Your session expired. Please sign in again.')
+        return
+      }
+
       if (!response.ok) {
         throw new Error(data.message || 'Could not load products.')
       }
@@ -131,6 +137,12 @@ function App() {
       )
 
       const data = await response.json()
+
+      if (response.status === 401) {
+        handleLogout()
+        setError('Your session expired. Please sign in again.')
+        return
+      }
 
       if (!response.ok) {
         throw new Error(data.message || 'Could not load product details.')
