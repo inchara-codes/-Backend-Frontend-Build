@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const pool = require("../src/db");
+const upload = require("../middleware/upload");
 
 // GET products with pagination, name search, and price filters
 router.get("/", async (req, res) => {
@@ -128,6 +129,74 @@ router.get("/", async (req, res) => {
 
     res.status(500).json({
       message: "Failed to fetch products",
+    });
+  }
+});
+
+// CREATE a product with one uploaded image
+router.post("/", upload.single("image"), async (req, res) => {
+  try {
+    const { name, description, price } = req.body;
+
+    const normalizedName = typeof name === "string" ? name.trim() : "";
+    const normalizedDescription =
+      typeof description === "string" ? description.trim() : "";
+
+    if (!normalizedName) {
+      return res.status(400).json({
+        message: "Product name is required.",
+      });
+    }
+
+    if (normalizedName.length > 200) {
+      return res.status(400).json({
+        message: "Product name must be 200 characters or fewer.",
+      });
+    }
+
+    if (
+      price === undefined ||
+      price === "" ||
+      !Number.isFinite(Number(price)) ||
+      Number(price) < 0
+    ) {
+      return res.status(400).json({
+        message: "Price must be a valid non-negative number.",
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        message: "A product image is required.",
+      });
+    }
+
+    const imageUrl = `/uploads/${req.file.filename}`;
+
+    const result = await pool.query(
+      `
+      INSERT INTO products (user_id, name, description, price, image_url)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, user_id, name, description, price, image_url, created_at
+      `,
+      [
+        req.user.id,
+        normalizedName,
+        normalizedDescription || null,
+        Number(price),
+        imageUrl,
+      ]
+    );
+
+    res.status(201).json({
+      message: "Product created successfully.",
+      product: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Failed to create product:", error);
+
+    res.status(500).json({
+      message: "Failed to create product.",
     });
   }
 });

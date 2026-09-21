@@ -3,6 +3,16 @@ import './App.css'
 
 const PRODUCTS_PER_PAGE = 8
 
+const API_URL = 'http://localhost:3000'
+
+function getProductImageUrl(imageUrl) {
+  if (imageUrl?.startsWith('/uploads/')) {
+    return `${API_URL}${imageUrl}`
+  }
+
+  return imageUrl
+}
+
 function App() {
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('user')
@@ -26,6 +36,15 @@ function App() {
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [productDetailLoading, setProductDetailLoading] = useState(false)
   const [productDetailError, setProductDetailError] = useState('')
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [newProduct, setNewProduct] = useState({
+    name: '',
+    description: '',
+    price: '',
+    image: null,
+  })
+  const [createProductError, setCreateProductError] = useState('')
+  const [creatingProduct, setCreatingProduct] = useState(false)
 
   useEffect(() => {
     if (user && token) {
@@ -158,6 +177,88 @@ function App() {
     }
   }
 
+  function openCreateProductForm() {
+    setSelectedProduct(null)
+    setProductDetailError('')
+    setCreateProductError('')
+    setShowCreateForm(true)
+  }
+
+  function closeCreateProductForm() {
+    setCreateProductError('')
+    setShowCreateForm(false)
+  }
+
+  async function handleCreateProduct(event) {
+    event.preventDefault()
+    setCreateProductError('')
+
+    const name = newProduct.name.trim()
+    const price = Number(newProduct.price)
+
+    if (!name) {
+      setCreateProductError('Product name is required.')
+      return
+    }
+
+    if (!Number.isFinite(price) || price < 0) {
+      setCreateProductError('Enter a valid non-negative price.')
+      return
+    }
+
+    if (!newProduct.image) {
+      setCreateProductError('Please choose a JPEG, PNG, or WebP image.')
+      return
+    }
+
+    try {
+      setCreatingProduct(true)
+
+      const formData = new FormData()
+      formData.append('name', name)
+      formData.append('description', newProduct.description.trim())
+      formData.append('price', String(price))
+      formData.append('image', newProduct.image)
+
+      const response = await fetch(`${API_URL}/products`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (response.status === 401) {
+        handleLogout()
+        setError('Your session expired. Please sign in again.')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not create product.')
+      }
+
+      setNewProduct({
+        name: '',
+        description: '',
+        price: '',
+        image: null,
+      })
+      setShowCreateForm(false)
+
+      if (page === 1) {
+        fetchProducts()
+      } else {
+        setPage(1)
+      }
+    } catch (error) {
+      setCreateProductError(error.message || 'Could not create product.')
+    } finally {
+      setCreatingProduct(false)
+    }
+  }
   function handleLogout() {
     localStorage.removeItem('user')
     localStorage.removeItem('token')
@@ -228,8 +329,95 @@ function App() {
           <p>Welcome, {user.name}</p>
         </div>
 
-        <button onClick={handleLogout}>Sign out</button>
+        <div className="header-actions">
+          <button className="add-product-button" onClick={openCreateProductForm}>
+            Add product
+          </button>
+
+          <button onClick={handleLogout}>Sign out</button>
+        </div>
       </header>
+
+      {showCreateForm && (
+        <section className="create-product-panel">
+          <div className="create-product-heading">
+            <div>
+              <h2>Add a product</h2>
+              <p>Upload a JPEG, PNG, or WebP image up to 5 MB.</p>
+            </div>
+
+            <button
+              className="close-form-button"
+              type="button"
+              onClick={closeCreateProductForm}
+            >
+              Cancel
+            </button>
+          </div>
+
+          <form className="create-product-form" onSubmit={handleCreateProduct}>
+            <label htmlFor="product-name">Product name</label>
+            <input
+              id="product-name"
+              type="text"
+              maxLength="200"
+              required
+              value={newProduct.name}
+              onChange={(event) =>
+                setNewProduct({ ...newProduct, name: event.target.value })
+              }
+              placeholder="Example: Handmade ceramic mug"
+            />
+
+            <label htmlFor="product-description">Description</label>
+            <textarea
+              id="product-description"
+              rows="4"
+              value={newProduct.description}
+              onChange={(event) =>
+                setNewProduct({ ...newProduct, description: event.target.value })
+              }
+              placeholder="Describe the product"
+            />
+
+            <label htmlFor="product-price">Price</label>
+            <input
+              id="product-price"
+              type="number"
+              min="0"
+              step="0.01"
+              required
+              value={newProduct.price}
+              onChange={(event) =>
+                setNewProduct({ ...newProduct, price: event.target.value })
+              }
+              placeholder="0.00"
+            />
+
+            <label htmlFor="product-image">Product image</label>
+            <input
+              id="product-image"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              required
+              onChange={(event) =>
+                setNewProduct({
+                  ...newProduct,
+                  image: event.target.files?.[0] || null,
+                })
+              }
+            />
+
+            {createProductError && (
+              <p className="error-message">{createProductError}</p>
+            )}
+
+            <button type="submit" disabled={creatingProduct}>
+              {creatingProduct ? 'Creating product...' : 'Create product'}
+            </button>
+          </form>
+        </section>
+      )}
 
       {productsLoading && !selectedProduct && <ProductGridSkeleton />}
 
@@ -266,7 +454,7 @@ function App() {
 
           <div className="product-detail-content">
             <img
-              src={selectedProduct.image_url}
+              src={getProductImageUrl(selectedProduct.image_url)}
               alt={selectedProduct.name}
               onError={(event) => {
                 event.currentTarget.src =
@@ -313,7 +501,7 @@ function App() {
                     onClick={() => openProduct(product.id)}
                   >
                     <img
-                      src={product.image_url}
+                      src={getProductImageUrl(product.image_url)}
                       alt={product.name}
                       onError={(event) => {
                         event.currentTarget.src =
