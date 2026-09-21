@@ -93,3 +93,15 @@ test("rejects an invalid price range", async () => {
     "Minimum price cannot be greater than maximum price."
   );
 });
+
+test("requires an image when creating a product", async () => {
+  const response = await request(app)
+    .post("/products")
+    .set("Authorization", `Bearer ${token}`)
+    .field("name", "Product without image")
+    .field("description", "This request intentionally has no image.")
+    .field("price", "25.00");
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, "A product image is required.");
+});
