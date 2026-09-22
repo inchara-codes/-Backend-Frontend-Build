@@ -12,13 +12,25 @@ const authMiddleware = require("../middleware/authMiddleware");
 
 const app = express();
 
-app.use(cors());
+const clientOrigin = process.env.CLIENT_ORIGIN || "http://localhost:5173";
+
+app.use(
+  cors({
+    origin: clientOrigin,
+  })
+);
 app.use(express.json());
 
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 app.use("/auth", authRoutes);
 app.use("/products", authMiddleware, productsRouter);
+
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+  });
+});
 
 app.get("/", (req, res) => {
   res.json({
@@ -72,8 +84,8 @@ app.use((error, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on port ${PORT}`);
   });
 }
 

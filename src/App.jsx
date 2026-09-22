@@ -3,7 +3,7 @@ import './App.css'
 
 const PRODUCTS_PER_PAGE = 8
 
-const API_URL = 'http://localhost:3000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
 function getProductImageUrl(imageUrl) {
   if (imageUrl?.startsWith('/uploads/')) {
@@ -85,7 +85,7 @@ function App() {
     try {
       setLoading(true)
 
-      const response = await fetch('http://localhost:3000/auth/login', {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
