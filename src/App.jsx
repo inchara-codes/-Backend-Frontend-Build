@@ -33,6 +33,15 @@ function App() {
   const [page, setPage] = useState(1)
   const [pagination, setPagination] = useState(null)
 
+  const [search, setSearch] = useState('')
+  const [minPrice, setMinPrice] = useState('')
+  const [maxPrice, setMaxPrice] = useState('')
+  const [filters, setFilters] = useState({
+    search: '',
+    minPrice: '',
+    maxPrice: '',
+  })
+
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [productDetailLoading, setProductDetailLoading] = useState(false)
   const [productDetailError, setProductDetailError] = useState('')
@@ -50,7 +59,7 @@ function App() {
     if (user && token) {
       fetchProducts()
     }
-  }, [user, token, page])
+  }, [user, token, page, filters])
 
   async function handleLogin(event) {
     event.preventDefault()
@@ -110,14 +119,20 @@ function App() {
       setProductsLoading(true)
       setProductsError('')
 
-      const response = await fetch(
-        `http://localhost:3000/products?page=${page}&limit=${PRODUCTS_PER_PAGE}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      )
+      const query = new URLSearchParams({
+        page: String(page),
+        limit: String(PRODUCTS_PER_PAGE),
+      })
+
+      if (filters.search) query.set('search', filters.search)
+      if (filters.minPrice) query.set('minPrice', filters.minPrice)
+      if (filters.maxPrice) query.set('maxPrice', filters.maxPrice)
+
+      const response = await fetch(`${API_URL}/products?${query.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
 
       const data = await response.json()
 
@@ -138,6 +153,36 @@ function App() {
     } finally {
       setProductsLoading(false)
     }
+  }
+
+
+  function applyFilters(event) {
+    event.preventDefault()
+    setProductsError('')
+
+    if (minPrice && maxPrice && Number(minPrice) > Number(maxPrice)) {
+      setProductsError('Minimum price cannot be greater than maximum price.')
+      return
+    }
+
+    setPage(1)
+    setFilters({
+      search: search.trim(),
+      minPrice,
+      maxPrice,
+    })
+  }
+
+  function clearFilters() {
+    setSearch('')
+    setMinPrice('')
+    setMaxPrice('')
+    setPage(1)
+    setFilters({
+      search: '',
+      minPrice: '',
+      maxPrice: '',
+    })
   }
 
   async function openProduct(productId) {
@@ -419,6 +464,49 @@ function App() {
         </section>
       )}
 
+
+      {!selectedProduct && !productDetailLoading && !showCreateForm && (
+  <form className="filter-form" onSubmit={applyFilters}>
+    <input
+      type="search"
+      value={search}
+      onChange={(event) => setSearch(event.target.value)}
+      placeholder="Search product name"
+      aria-label="Search products by name"
+    />
+
+    <input
+      type="number"
+      min="0"
+      step="0.01"
+      value={minPrice}
+      onChange={(event) => setMinPrice(event.target.value)}
+      placeholder="Minimum price"
+      aria-label="Minimum price"
+    />
+
+    <input
+      type="number"
+      min="0"
+      step="0.01"
+      value={maxPrice}
+      onChange={(event) => setMaxPrice(event.target.value)}
+      placeholder="Maximum price"
+      aria-label="Maximum price"
+    />
+
+    <button type="submit">Apply filters</button>
+
+    <button
+      className="clear-filters-button"
+      type="button"
+      onClick={clearFilters}
+    >
+      Clear
+    </button>
+  </form>
+)}
+
       {productsLoading && !selectedProduct && <ProductGridSkeleton />}
 
       {productsError && (
@@ -429,7 +517,7 @@ function App() {
       )}
 
       {!productsLoading && !productsError && products.length === 0 && (
-        <p>No products available yet.</p>
+        <p>No products match your search or filters.</p>
       )}
 
       {productDetailLoading && <ProductDetailSkeleton />}
