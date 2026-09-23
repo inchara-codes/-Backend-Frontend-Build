@@ -192,7 +192,7 @@ function App() {
       setSelectedProduct(null)
 
       const response = await fetch(
-        `http://localhost:3000/products/${productId}`,
+        `${API_URL}/products/${productId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
