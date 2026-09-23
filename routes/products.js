@@ -3,6 +3,28 @@ const router = express.Router();
 
 const pool = require("../src/db");
 const upload = require("../middleware/upload");
+const cloudinary = require("../config/cloudinary");
+
+function uploadImageToCloudinary(fileBuffer) {
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: "product-catalogue",
+        resource_type: "image",
+      },
+      (error, result) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve(result);
+      }
+    );
+
+    uploadStream.end(fileBuffer);
+  });
+}
 
 // GET products with pagination, name search, and price filters
 router.get("/", async (req, res) => {
@@ -171,7 +193,7 @@ router.post("/", upload.single("image"), async (req, res) => {
       });
     }
 
-    const imageUrl = `/uploads/${req.file.filename}`;
+    const uploadedImage = await uploadImageToCloudinary(req.file.buffer);
 
     const result = await pool.query(
       `
@@ -184,7 +206,7 @@ router.post("/", upload.single("image"), async (req, res) => {
         normalizedName,
         normalizedDescription || null,
         Number(price),
-        imageUrl,
+        uploadedImage.secure_url,
       ]
     );
 
