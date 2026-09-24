@@ -548,3 +548,16 @@
     grid-column: auto;
   }
 }
+.login-card .auth-mode-button {
+  margin-top: 12px;
+  background: transparent;
+  color: #2563eb;
+  border: 0;
+  font-weight: 600;
+}
+
+.login-card .auth-mode-button:hover {
+  background: transparent;
+  color: #1d4ed8;
+  text-decoration: underline;
+}

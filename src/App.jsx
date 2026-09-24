@@ -26,6 +26,8 @@ function App() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isRegistering, setIsRegistering] = useState(false)
+  const [name, setName] = useState('')
 
   const [products, setProducts] = useState([])
   const [productsLoading, setProductsLoading] = useState(false)
@@ -113,7 +115,70 @@ function App() {
       setLoading(false)
     }
   }
+  async function handleRegister(event) {
+    event.preventDefault()
+    setError('')
 
+    const normalizedName = name.trim()
+    const normalizedEmail = email.trim().toLowerCase()
+
+    if (!normalizedName || !normalizedEmail || !password) {
+      setError('Name, email, and password are required.')
+      return
+    }
+
+    if (normalizedName.length > 100) {
+      setError('Name must be 100 characters or fewer.')
+      return
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError('Enter a valid email address.')
+      return
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+
+    try {
+      setLoading(true)
+
+      const response = await fetch(`${API_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: normalizedName,
+          email: normalizedEmail,
+          password,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.message || 'Registration failed.')
+        return
+      }
+
+      localStorage.setItem('user', JSON.stringify(data.user))
+      localStorage.setItem('token', data.token)
+
+      setUser(data.user)
+      setToken(data.token)
+      setName('')
+      setEmail('')
+      setPassword('')
+      setPage(1)
+    } catch {
+      setError('Cannot connect to the server. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
   async function fetchProducts() {
     try {
       setProductsLoading(true)
@@ -327,44 +392,87 @@ function App() {
     }
   }
 
-  if (!user || !token) {
-    return (
-      <main className="login-page">
-        <form className="login-card" onSubmit={handleLogin}>
-          <h1>Welcome back</h1>
-          <p>Sign in to browse products.</p>
+if (!user || !token) {
+  return (
+    <main className="login-page">
+      <form
+        className="login-card"
+        onSubmit={isRegistering ? handleRegister : handleLogin}
+      >
+        <h1>{isRegistering ? 'Create your account' : 'Welcome back'}</h1>
 
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            autoComplete="email"
-            required
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="you@example.com"
-          />
+        <p>
+          {isRegistering
+            ? 'Create an account to browse products.'
+            : 'Sign in to browse products.'}
+        </p>
 
-          <label htmlFor="password">Password</label>
-          <input
-            id="password"
-            type="password"
-            autoComplete="current-password"
-            required
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="Enter your password"
-          />
+        {isRegistering && (
+          <>
+            <label htmlFor="name">Name</label>
+            <input
+              id="name"
+              type="text"
+              autoComplete="name"
+              maxLength={100}
+              required
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Your name"
+            />
+          </>
+        )}
 
-          {error && <p className="error-message">{error}</p>}
+        <label htmlFor="email">Email</label>
+        <input
+          id="email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="you@example.com"
+        />
 
-          <button type="submit" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign in'}
-          </button>
-        </form>
-      </main>
-    )
-  }
+        <label htmlFor="password">Password</label>
+        <input
+          id="password"
+          type="password"
+          autoComplete={isRegistering ? 'new-password' : 'current-password'}
+          required
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          placeholder="Enter your password"
+        />
+
+        {error && <p className="error-message">{error}</p>}
+
+        <button type="submit" disabled={loading}>
+          {loading
+            ? isRegistering
+              ? 'Creating account...'
+              : 'Signing in...'
+            : isRegistering
+              ? 'Create account'
+              : 'Sign in'}
+        </button>
+
+        <button
+          type="button"
+          className="auth-mode-button"
+          onClick={() => {
+            setIsRegistering((current) => !current)
+            setError('')
+          }}
+        >
+          {isRegistering
+            ? 'Already have an account? Sign in'
+            : 'New here? Create an account'}
+        </button>
+      </form>
+    </main>
+  )
+}
 
   return (
     <main className="products-page">
@@ -466,46 +574,46 @@ function App() {
 
 
       {!selectedProduct && !productDetailLoading && !showCreateForm && (
-  <form className="filter-form" onSubmit={applyFilters}>
-    <input
-      type="search"
-      value={search}
-      onChange={(event) => setSearch(event.target.value)}
-      placeholder="Search product name"
-      aria-label="Search products by name"
-    />
+        <form className="filter-form" onSubmit={applyFilters}>
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search product name"
+            aria-label="Search products by name"
+          />
 
-    <input
-      type="number"
-      min="0"
-      step="0.01"
-      value={minPrice}
-      onChange={(event) => setMinPrice(event.target.value)}
-      placeholder="Minimum price"
-      aria-label="Minimum price"
-    />
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={minPrice}
+            onChange={(event) => setMinPrice(event.target.value)}
+            placeholder="Minimum price"
+            aria-label="Minimum price"
+          />
 
-    <input
-      type="number"
-      min="0"
-      step="0.01"
-      value={maxPrice}
-      onChange={(event) => setMaxPrice(event.target.value)}
-      placeholder="Maximum price"
-      aria-label="Maximum price"
-    />
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={maxPrice}
+            onChange={(event) => setMaxPrice(event.target.value)}
+            placeholder="Maximum price"
+            aria-label="Maximum price"
+          />
 
-    <button type="submit">Apply filters</button>
+          <button type="submit">Apply filters</button>
 
-    <button
-      className="clear-filters-button"
-      type="button"
-      onClick={clearFilters}
-    >
-      Clear
-    </button>
-  </form>
-)}
+          <button
+            className="clear-filters-button"
+            type="button"
+            onClick={clearFilters}
+          >
+            Clear
+          </button>
+        </form>
+      )}
 
       {productsLoading && !selectedProduct && <ProductGridSkeleton />}
 
