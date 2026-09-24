@@ -5,6 +5,81 @@ const jwt = require("jsonwebtoken");
 const router = express.Router();
 const pool = require("../src/db");
 
+router.post("/register", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+
+    const normalizedName = typeof name === "string" ? name.trim() : "";
+    const normalizedEmail =
+      typeof email === "string" ? email.trim().toLowerCase() : "";
+
+    if (!normalizedName || !normalizedEmail || typeof password !== "string") {
+      return res.status(400).json({
+        message: "Name, email, and password are required.",
+      });
+    }
+
+    if (normalizedName.length > 100) {
+      return res.status(400).json({
+        message: "Name must be 100 characters or fewer.",
+      });
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({
+        message: "Enter a valid email address.",
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        message: "Password must be at least 8 characters.",
+      });
+    }
+
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET is not configured.");
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    const result = await pool.query(
+      `
+      INSERT INTO users (name, email, password_hash)
+      VALUES ($1, $2, $3)
+      RETURNING id, name, email
+      `,
+      [normalizedName, normalizedEmail, passwordHash]
+    );
+
+    const user = result.rows[0];
+
+    const token = jwt.sign(
+      { sub: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h", algorithm: "HS256" }
+    );
+
+    return res.status(201).json({
+      message: "Account created successfully.",
+      token,
+      user,
+    });
+  } catch (error) {
+    if (error.code === "23505") {
+      return res.status(409).json({
+        message: "An account with this email already exists.",
+      });
+    }
+
+    console.error("Registration failed:", error);
+
+    return res.status(500).json({
+      message: "Registration failed. Please try again later.",
+    });
+  }
+});
+
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
