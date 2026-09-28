@@ -14,6 +14,7 @@ async function seed() {
 
     // Create 25 users
     for (let i = 0; i < 25; i++) {
+      const role = i === 0 ? "admin" : "user";
       const name = faker.person.fullName();
       const email =
         i === 0
@@ -24,10 +25,10 @@ async function seed() {
 
       await pool.query(
         `
-        INSERT INTO users (name, email, password_hash)
-        VALUES ($1, $2, $3)
+        INSERT INTO users (name, email, password_hash, role)
+        VALUES ($1, $2, $3, $4)
         `,
-        [name, email, passwordHash]
+        [name, email, passwordHash, role]
       );
     }
 
