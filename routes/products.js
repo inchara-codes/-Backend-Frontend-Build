@@ -4,6 +4,7 @@ const router = express.Router();
 const pool = require("../src/db");
 const upload = require("../middleware/upload");
 const cloudinary = require("../config/cloudinary");
+const logAdminAction = require("../utils/audit");
 const adminMiddleware = require("../middleware/adminMiddleware");
 
 function uploadImageToCloudinary(fileBuffer) {
@@ -211,9 +212,22 @@ router.post("/", adminMiddleware, upload.single("image"), async (req, res) => {
       ]
     );
 
+    const product = result.rows[0];
+
+    await logAdminAction(pool, {
+      actorId: req.user.id,
+      action: "product_created",
+      entityType: "product",
+      entityId: Number(product.id),
+      details: {
+        productName: product.name,
+        price: product.price,
+      },
+    });
+
     res.status(201).json({
       message: "Product created successfully.",
-      product: result.rows[0],
+      product,
     });
   } catch (error) {
     console.error("Failed to create product:", error);
@@ -339,10 +353,25 @@ router.put("/:id", adminMiddleware, upload.single("image"), async (req, res) => 
       });
     }
 
-    return res.json({
-      message: "Product updated successfully.",
-      product: result.rows[0],
-    });
+const product = result.rows[0];
+
+await logAdminAction(pool, {
+  actorId: req.user.id,
+  action: "product_updated",
+  entityType: "product",
+  entityId: Number(product.id),
+  details: {
+    productName: product.name,
+    price: product.price,
+    imageReplaced: Boolean(req.file),
+  },
+});
+
+return res.json({
+  message: "Product updated successfully.",
+  product,
+});
+
   } catch (error) {
     console.error("Failed to update product:", error);
 
@@ -367,7 +396,7 @@ router.delete("/:id", adminMiddleware, async (req, res) => {
       `
       DELETE FROM products
       WHERE id = $1
-      RETURNING id
+      RETURNING id, name, description, price, image_url, user_id
       `,
       [id]
     );
@@ -378,9 +407,24 @@ router.delete("/:id", adminMiddleware, async (req, res) => {
       });
     }
 
-    return res.json({
-      message: "Product deleted successfully.",
-    });
+const deletedProduct = result.rows[0];
+
+await logAdminAction(pool, {
+  actorId: req.user.id,
+  action: "product_deleted",
+  entityType: "product",
+  entityId: Number(deletedProduct.id),
+  details: {
+    productName: deletedProduct.name,
+    price: deletedProduct.price,
+    createdByUserId: deletedProduct.user_id,
+  },
+});
+
+return res.json({
+  message: "Product deleted successfully.",
+});
+
   } catch (error) {
     console.error("Failed to delete product:", error);
 

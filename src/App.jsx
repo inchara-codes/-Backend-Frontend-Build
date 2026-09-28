@@ -70,6 +70,13 @@ function App() {
   const [updatingProduct, setUpdatingProduct] = useState(false)
   const [deletingProduct, setDeletingProduct] = useState(false)
 
+  const [showAdminPage, setShowAdminPage] = useState(false)
+  const [adminUsers, setAdminUsers] = useState([])
+  const [auditLogs, setAuditLogs] = useState([])
+  const [adminPageLoading, setAdminPageLoading] = useState(false)
+  const [adminPageError, setAdminPageError] = useState('')
+  const [updatingRoleId, setUpdatingRoleId] = useState(null)
+
   useEffect(() => {
     if (user && token) {
       fetchProducts()
@@ -507,6 +514,138 @@ function App() {
     }
   }
 
+  async function fetchAdminData() {
+    try {
+      setAdminPageLoading(true)
+      setAdminPageError('')
+
+      const [usersResponse, logsResponse] = await Promise.all([
+        fetch(`${API_URL}/admin/users`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+        fetch(`${API_URL}/admin/audit-logs`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+      ])
+
+      const [usersData, logsData] = await Promise.all([
+        usersResponse.json(),
+        logsResponse.json(),
+      ])
+
+      if (usersResponse.status === 401 || logsResponse.status === 401) {
+        handleLogout()
+        setError('Your session expired. Please sign in again.')
+        return
+      }
+
+      if (!usersResponse.ok) {
+        throw new Error(usersData.message || 'Could not load users.')
+      }
+
+      if (!logsResponse.ok) {
+        throw new Error(logsData.message || 'Could not load audit history.')
+      }
+
+      setAdminUsers(usersData.users)
+      setAuditLogs(logsData.logs)
+    } catch (error) {
+      setAdminPageError(error.message || 'Could not load admin data.')
+    } finally {
+      setAdminPageLoading(false)
+    }
+  }
+
+  function openAdminPage() {
+    setSelectedProduct(null)
+    setShowCreateForm(false)
+    setShowEditForm(false)
+    setShowAdminPage(true)
+    fetchAdminData()
+  }
+
+  async function handleRoleChange(targetUser, nextRole) {
+    const action =
+      nextRole === 'admin'
+        ? `Make ${targetUser.name} an admin?`
+        : `Remove admin access from ${targetUser.name}?`
+
+    if (!window.confirm(action)) return
+
+    try {
+      setUpdatingRoleId(targetUser.id)
+      setAdminPageError('')
+
+      const response = await fetch(
+        `${API_URL}/admin/users/${targetUser.id}/role`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ role: nextRole }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (response.status === 401) {
+        handleLogout()
+        setError('Your session expired. Please sign in again.')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not update this user role.')
+      }
+
+      await fetchAdminData()
+    } catch (error) {
+      setAdminPageError(error.message || 'Could not update this user role.')
+    } finally {
+      setUpdatingRoleId(null)
+    }
+  }
+
+  function describeAuditLog(log) {
+    let details = log.details || {}
+
+    if (typeof details === 'string') {
+      try {
+        details = JSON.parse(details)
+      } catch {
+        details = {}
+      }
+    }
+
+    if (log.action === 'product_created') {
+      return `Added product: ${details.productName || `#${log.entity_id}`}`
+    }
+
+    if (log.action === 'product_updated') {
+      return `Edited product: ${details.productName || `#${log.entity_id}`}`
+    }
+
+    if (log.action === 'product_deleted') {
+      return `Deleted product: ${details.productName || `#${log.entity_id}`}`
+    }
+
+    if (log.action === 'admin_granted') {
+      return `Granted admin access to ${details.targetName || 'a user'}`
+    }
+
+    if (log.action === 'admin_removed') {
+      return `Removed admin access from ${details.targetName || 'a user'}`
+    }
+
+    return log.action
+  }
+
   function handleLogout() {
     localStorage.removeItem('user')
     localStorage.removeItem('token')
@@ -516,6 +655,9 @@ function App() {
     setPagination(null)
     setSelectedProduct(null)
     setPage(1)
+    setShowAdminPage(false)
+    setAdminUsers([])
+    setAuditLogs([])
   }
 
   function goToPreviousPage() {
@@ -612,6 +754,161 @@ function App() {
     )
   }
 
+  if (showAdminPage && isAdmin) {
+    return (
+      <main className="products-page">
+        <header className="products-header">
+          <div>
+            <h1>Admin panel</h1>
+            <p>Manage administrator access and review activity.</p>
+          </div>
+
+          <div className="header-actions">
+            <button
+              className="back-to-products-button"
+              type="button"
+              onClick={() => setShowAdminPage(false)}
+            >
+              Back to products
+            </button>
+
+            <button type="button" onClick={handleLogout}>
+              Sign out
+            </button>
+          </div>
+        </header>
+
+        {adminPageLoading && <p>Loading admin data...</p>}
+
+        {adminPageError && (
+          <div>
+            <p className="error-message">{adminPageError}</p>
+            <button type="button" onClick={fetchAdminData}>
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!adminPageLoading && !adminPageError && (
+          <>
+            <section className="admin-section">
+              <div className="admin-section-heading">
+                <div>
+                  <h2>User roles</h2>
+                  <p>Only admins can add, edit, or delete products.</p>
+                </div>
+              </div>
+
+              <div className="admin-table-wrapper">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {adminUsers.map((managedUser) => (
+                      <tr key={managedUser.id}>
+                        <td>{managedUser.name}</td>
+                        <td>{managedUser.email}</td>
+                        <td>
+                          <span
+                            className={`role-badge role-${managedUser.role}`}
+                          >
+                            {managedUser.role}
+                          </span>
+                        </td>
+                        <td>
+                          {managedUser.is_initial_admin ? (
+                            <span className="current-admin-label">
+                              Initial admin
+                            </span>
+                          ) : String(managedUser.id) === String(user.id) ? (
+                            <span className="current-admin-label">
+                              Current admin
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className={
+                                managedUser.role === 'admin'
+                                  ? 'remove-admin-button'
+                                  : 'make-admin-button'
+                              }
+                              disabled={
+                                String(updatingRoleId) ===
+                                String(managedUser.id)
+                              }
+                              onClick={() =>
+                                handleRoleChange(
+                                  managedUser,
+                                  managedUser.role === 'admin'
+                                    ? 'user'
+                                    : 'admin'
+                                )
+                              }
+                            >
+                              {String(updatingRoleId) ===
+                                String(managedUser.id)
+                                ? 'Updating...'
+                                : managedUser.role === 'admin'
+                                  ? 'Remove admin'
+                                  : 'Make admin'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="admin-section">
+              <div className="admin-section-heading">
+                <div>
+                  <h2>Admin activity</h2>
+                  <p>Times are shown in your browser’s local timezone.</p>
+                </div>
+              </div>
+
+              {auditLogs.length === 0 ? (
+                <p>No admin actions have been recorded yet.</p>
+              ) : (
+                <ul className="audit-log-list">
+                  {auditLogs.map((log) => (
+                    <li className="audit-log-item" key={log.id}>
+                      <div>
+                        <strong>{log.actor_name}</strong>
+                        <p>{describeAuditLog(log)}</p>
+                      </div>
+
+                      <time dateTime={log.created_at}>
+                        {new Date(log.created_at).toLocaleString(undefined, {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          timeZoneName: 'short',
+                        })}
+                      </time>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </>
+        )}
+      </main>
+    )
+  }
+
   return (
     <main className="products-page">
       <header className="products-header">
@@ -621,6 +918,17 @@ function App() {
         </div>
 
         <div className="header-actions">
+
+          {isAdmin && (
+            <button
+              className="admin-panel-button"
+              type="button"
+              onClick={openAdminPage}
+            >
+              Admin panel
+            </button>
+          )}
+
           {isAdmin && (
             <button
               className="add-product-button"

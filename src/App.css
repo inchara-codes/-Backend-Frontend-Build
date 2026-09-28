@@ -630,3 +630,144 @@
 .edit-product-form textarea {
   resize: vertical;
 }
+
+.admin-panel-button {
+  background: #7c3aed !important;
+}
+
+.admin-panel-button:hover {
+  background: #6d28d9 !important;
+}
+
+.back-to-products-button {
+  background: #475569 !important;
+}
+
+.admin-section {
+  margin-bottom: 32px;
+  padding: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: white;
+}
+
+.admin-section-heading {
+  margin-bottom: 20px;
+}
+
+.admin-section-heading h2,
+.admin-section-heading p {
+  margin: 0;
+}
+
+.admin-section-heading p {
+  margin-top: 6px;
+  color: #64748b;
+}
+
+.admin-table-wrapper {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admin-table th {
+  color: #475569;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+}
+
+.role-badge {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.role-admin {
+  color: #5b21b6;
+  background: #ede9fe;
+}
+
+.role-user {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.make-admin-button,
+.remove-admin-button {
+  padding: 8px 11px;
+  border: 0;
+  border-radius: 6px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.make-admin-button {
+  background: #047857;
+}
+
+.remove-admin-button {
+  background: #dc2626;
+}
+
+.current-admin-label {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.audit-log-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.audit-log-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.audit-log-item p {
+  margin: 5px 0 0;
+  color: #475569;
+}
+
+.audit-log-item time {
+  color: #64748b;
+  font-size: 0.85rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (max-width: 650px) {
+  .audit-log-item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .audit-log-item time {
+    text-align: left;
+    white-space: normal;
+  }
+}
