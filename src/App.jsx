@@ -22,6 +22,8 @@ function App() {
     return localStorage.getItem('token')
   })
 
+  const isAdmin = user?.role === 'admin'
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -56,6 +58,17 @@ function App() {
   })
   const [createProductError, setCreateProductError] = useState('')
   const [creatingProduct, setCreatingProduct] = useState(false)
+
+  const [showEditForm, setShowEditForm] = useState(false)
+  const [editProduct, setEditProduct] = useState({
+    name: '',
+    description: '',
+    price: '',
+    image: null,
+  })
+  const [editProductError, setEditProductError] = useState('')
+  const [updatingProduct, setUpdatingProduct] = useState(false)
+  const [deletingProduct, setDeletingProduct] = useState(false)
 
   useEffect(() => {
     if (user && token) {
@@ -369,6 +382,131 @@ function App() {
       setCreatingProduct(false)
     }
   }
+
+  function openEditProductForm() {
+    if (!selectedProduct) return
+
+    setEditProduct({
+      name: selectedProduct.name,
+      description: selectedProduct.description || '',
+      price: String(selectedProduct.price),
+      image: null,
+    })
+    setEditProductError('')
+    setShowEditForm(true)
+  }
+
+  function closeEditProductForm() {
+    setEditProductError('')
+    setShowEditForm(false)
+  }
+
+  async function handleUpdateProduct(event) {
+    event.preventDefault()
+    setEditProductError('')
+
+    const name = editProduct.name.trim()
+    const price = Number(editProduct.price)
+
+    if (!name) {
+      setEditProductError('Product name is required.')
+      return
+    }
+
+    if (!Number.isFinite(price) || price < 0) {
+      setEditProductError('Enter a valid non-negative price.')
+      return
+    }
+
+    try {
+      setUpdatingProduct(true)
+
+      const formData = new FormData()
+      formData.append('name', name)
+      formData.append('description', editProduct.description.trim())
+      formData.append('price', String(price))
+
+      if (editProduct.image) {
+        formData.append('image', editProduct.image)
+      }
+
+      const response = await fetch(
+        `${API_URL}/products/${selectedProduct.id}`,
+        {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        }
+      )
+
+      const data = await response.json()
+
+      if (response.status === 401) {
+        handleLogout()
+        setError('Your session expired. Please sign in again.')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not update product.')
+      }
+
+      setSelectedProduct(data.product)
+      setShowEditForm(false)
+      fetchProducts()
+    } catch (error) {
+      setEditProductError(error.message || 'Could not update product.')
+    } finally {
+      setUpdatingProduct(false)
+    }
+  }
+
+  async function handleDeleteProduct() {
+    if (!selectedProduct) return
+
+    const shouldDelete = window.confirm(
+      `Delete "${selectedProduct.name}"? This cannot be undone.`
+    )
+
+    if (!shouldDelete) return
+
+    try {
+      setDeletingProduct(true)
+
+      const response = await fetch(
+        `${API_URL}/products/${selectedProduct.id}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+
+      const data = await response.json()
+
+      if (response.status === 401) {
+        handleLogout()
+        setError('Your session expired. Please sign in again.')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not delete product.')
+      }
+
+      setSelectedProduct(null)
+      setShowEditForm(false)
+      fetchProducts()
+    } catch (error) {
+      setProductDetailError(error.message || 'Could not delete product.')
+    } finally {
+      setDeletingProduct(false)
+    }
+  }
+
   function handleLogout() {
     localStorage.removeItem('user')
     localStorage.removeItem('token')
@@ -392,87 +530,87 @@ function App() {
     }
   }
 
-if (!user || !token) {
-  return (
-    <main className="login-page">
-      <form
-        className="login-card"
-        onSubmit={isRegistering ? handleRegister : handleLogin}
-      >
-        <h1>{isRegistering ? 'Create your account' : 'Welcome back'}</h1>
-
-        <p>
-          {isRegistering
-            ? 'Create an account to browse products.'
-            : 'Sign in to browse products.'}
-        </p>
-
-        {isRegistering && (
-          <>
-            <label htmlFor="name">Name</label>
-            <input
-              id="name"
-              type="text"
-              autoComplete="name"
-              maxLength={100}
-              required
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Your name"
-            />
-          </>
-        )}
-
-        <label htmlFor="email">Email</label>
-        <input
-          id="email"
-          type="email"
-          autoComplete="email"
-          required
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="you@example.com"
-        />
-
-        <label htmlFor="password">Password</label>
-        <input
-          id="password"
-          type="password"
-          autoComplete={isRegistering ? 'new-password' : 'current-password'}
-          required
-          value={password}
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="Enter your password"
-        />
-
-        {error && <p className="error-message">{error}</p>}
-
-        <button type="submit" disabled={loading}>
-          {loading
-            ? isRegistering
-              ? 'Creating account...'
-              : 'Signing in...'
-            : isRegistering
-              ? 'Create account'
-              : 'Sign in'}
-        </button>
-
-        <button
-          type="button"
-          className="auth-mode-button"
-          onClick={() => {
-            setIsRegistering((current) => !current)
-            setError('')
-          }}
+  if (!user || !token) {
+    return (
+      <main className="login-page">
+        <form
+          className="login-card"
+          onSubmit={isRegistering ? handleRegister : handleLogin}
         >
-          {isRegistering
-            ? 'Already have an account? Sign in'
-            : 'New here? Create an account'}
-        </button>
-      </form>
-    </main>
-  )
-}
+          <h1>{isRegistering ? 'Create your account' : 'Welcome back'}</h1>
+
+          <p>
+            {isRegistering
+              ? 'Create an account to browse products.'
+              : 'Sign in to browse products.'}
+          </p>
+
+          {isRegistering && (
+            <>
+              <label htmlFor="name">Name</label>
+              <input
+                id="name"
+                type="text"
+                autoComplete="name"
+                maxLength={100}
+                required
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Your name"
+              />
+            </>
+          )}
+
+          <label htmlFor="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            required
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="you@example.com"
+          />
+
+          <label htmlFor="password">Password</label>
+          <input
+            id="password"
+            type="password"
+            autoComplete={isRegistering ? 'new-password' : 'current-password'}
+            required
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Enter your password"
+          />
+
+          {error && <p className="error-message">{error}</p>}
+
+          <button type="submit" disabled={loading}>
+            {loading
+              ? isRegistering
+                ? 'Creating account...'
+                : 'Signing in...'
+              : isRegistering
+                ? 'Create account'
+                : 'Sign in'}
+          </button>
+
+          <button
+            type="button"
+            className="auth-mode-button"
+            onClick={() => {
+              setIsRegistering((current) => !current)
+              setError('')
+            }}
+          >
+            {isRegistering
+              ? 'Already have an account? Sign in'
+              : 'New here? Create an account'}
+          </button>
+        </form>
+      </main>
+    )
+  }
 
   return (
     <main className="products-page">
@@ -483,9 +621,14 @@ if (!user || !token) {
         </div>
 
         <div className="header-actions">
-          <button className="add-product-button" onClick={openCreateProductForm}>
-            Add product
-          </button>
+          {isAdmin && (
+            <button
+              className="add-product-button"
+              onClick={openCreateProductForm}
+            >
+              Add product
+            </button>
+          )}
 
           <button onClick={handleLogout}>Sign out</button>
         </div>
@@ -677,6 +820,105 @@ if (!user || !token) {
                 Added:{' '}
                 {new Date(selectedProduct.created_at).toLocaleDateString()}
               </p>
+              {isAdmin && (
+                <div className="admin-product-actions">
+                  <button
+                    type="button"
+                    className="edit-product-button"
+                    onClick={openEditProductForm}
+                    disabled={deletingProduct}
+                  >
+                    Edit product
+                  </button>
+
+                  <button
+                    type="button"
+                    className="delete-product-button"
+                    onClick={handleDeleteProduct}
+                    disabled={deletingProduct}
+                  >
+                    {deletingProduct ? 'Deleting...' : 'Delete product'}
+                  </button>
+                </div>
+              )}
+
+              {isAdmin && showEditForm && (
+                <form className="edit-product-form" onSubmit={handleUpdateProduct}>
+                  <h2>Edit product</h2>
+
+                  <label htmlFor="edit-product-name">Product name</label>
+                  <input
+                    id="edit-product-name"
+                    type="text"
+                    maxLength="200"
+                    required
+                    value={editProduct.name}
+                    onChange={(event) =>
+                      setEditProduct({ ...editProduct, name: event.target.value })
+                    }
+                  />
+
+                  <label htmlFor="edit-product-description">Description</label>
+                  <textarea
+                    id="edit-product-description"
+                    rows="4"
+                    value={editProduct.description}
+                    onChange={(event) =>
+                      setEditProduct({
+                        ...editProduct,
+                        description: event.target.value,
+                      })
+                    }
+                  />
+
+                  <label htmlFor="edit-product-price">Price</label>
+                  <input
+                    id="edit-product-price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    required
+                    value={editProduct.price}
+                    onChange={(event) =>
+                      setEditProduct({ ...editProduct, price: event.target.value })
+                    }
+                  />
+
+                  <label htmlFor="edit-product-image">
+                    Replace image <span>(optional)</span>
+                  </label>
+                  <input
+                    id="edit-product-image"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(event) =>
+                      setEditProduct({
+                        ...editProduct,
+                        image: event.target.files?.[0] || null,
+                      })
+                    }
+                  />
+
+                  {editProductError && (
+                    <p className="error-message">{editProductError}</p>
+                  )}
+
+                  <div className="edit-form-actions">
+                    <button type="submit" disabled={updatingProduct}>
+                      {updatingProduct ? 'Saving...' : 'Save changes'}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="cancel-edit-button"
+                      onClick={closeEditProductForm}
+                      disabled={updatingProduct}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         </section>
