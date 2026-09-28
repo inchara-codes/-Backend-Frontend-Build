@@ -4,6 +4,7 @@ const router = express.Router();
 const pool = require("../src/db");
 const upload = require("../middleware/upload");
 const cloudinary = require("../config/cloudinary");
+const adminMiddleware = require("../middleware/adminMiddleware");
 
 function uploadImageToCloudinary(fileBuffer) {
   return new Promise((resolve, reject) => {
@@ -156,7 +157,7 @@ router.get("/", async (req, res) => {
 });
 
 // CREATE a product with one uploaded image
-router.post("/", upload.single("image"), async (req, res) => {
+router.post("/", adminMiddleware, upload.single("image"), async (req, res) => {
   try {
     const { name, description, price } = req.body;
 
@@ -262,6 +263,129 @@ router.get("/:id", async (req, res) => {
 
     res.status(500).json({
       message: "Failed to fetch product",
+    });
+  }
+});
+
+// UPDATE a product — admin only
+router.put("/:id", adminMiddleware, upload.single("image"), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, price } = req.body;
+
+    if (!/^\d+$/.test(id) || Number(id) < 1) {
+      return res.status(400).json({
+        message: "Product ID must be a positive whole number.",
+      });
+    }
+
+    const normalizedName = typeof name === "string" ? name.trim() : "";
+    const normalizedDescription =
+      typeof description === "string" ? description.trim() : "";
+
+    if (!normalizedName) {
+      return res.status(400).json({
+        message: "Product name is required.",
+      });
+    }
+
+    if (normalizedName.length > 200) {
+      return res.status(400).json({
+        message: "Product name must be 200 characters or fewer.",
+      });
+    }
+
+    if (
+      price === undefined ||
+      price === "" ||
+      !Number.isFinite(Number(price)) ||
+      Number(price) < 0
+    ) {
+      return res.status(400).json({
+        message: "Price must be a valid non-negative number.",
+      });
+    }
+
+    let newImageUrl = null;
+
+    if (req.file) {
+      const uploadedImage = await uploadImageToCloudinary(req.file.buffer);
+      newImageUrl = uploadedImage.secure_url;
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE products
+      SET
+        name = $1,
+        description = $2,
+        price = $3,
+        image_url = COALESCE($4, image_url)
+      WHERE id = $5
+      RETURNING id, user_id, name, description, price, image_url, created_at
+      `,
+      [
+        normalizedName,
+        normalizedDescription || null,
+        Number(price),
+        newImageUrl,
+        id,
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: "Product not found.",
+      });
+    }
+
+    return res.json({
+      message: "Product updated successfully.",
+      product: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Failed to update product:", error);
+
+    return res.status(500).json({
+      message: "Failed to update product.",
+    });
+  }
+});
+
+// DELETE a product — admin only
+router.delete("/:id", adminMiddleware, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!/^\d+$/.test(id) || Number(id) < 1) {
+      return res.status(400).json({
+        message: "Product ID must be a positive whole number.",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      DELETE FROM products
+      WHERE id = $1
+      RETURNING id
+      `,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: "Product not found.",
+      });
+    }
+
+    return res.json({
+      message: "Product deleted successfully.",
+    });
+  } catch (error) {
+    console.error("Failed to delete product:", error);
+
+    return res.status(500).json({
+      message: "Failed to delete product.",
     });
   }
 });

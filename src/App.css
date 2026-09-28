@@ -561,3 +561,72 @@
   color: #1d4ed8;
   text-decoration: underline;
 }
+
+.admin-product-actions,
+.edit-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.edit-product-button,
+.delete-product-button,
+.edit-form-actions button {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 6px;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.edit-product-button,
+.edit-form-actions button[type="submit"] {
+  background: #2563eb;
+}
+
+.delete-product-button {
+  background: #dc2626;
+}
+
+.cancel-edit-button {
+  background: #64748b;
+}
+
+.edit-product-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.edit-product-form h2 {
+  margin: 0 0 8px;
+}
+
+.edit-product-form label {
+  margin-top: 8px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.edit-product-form label span {
+  color: #64748b;
+  font-weight: 400;
+}
+
+.edit-product-form input,
+.edit-product-form textarea {
+  width: 100%;
+  padding: 11px 12px;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.edit-product-form textarea {
+  resize: vertical;
+}

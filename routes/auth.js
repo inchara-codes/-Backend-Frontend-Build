@@ -5,6 +5,25 @@ const jwt = require("jsonwebtoken");
 const router = express.Router();
 const pool = require("../src/db");
 
+function createToken(user) {
+  if (!process.env.JWT_SECRET) {
+    throw new Error("JWT_SECRET is not configured.");
+  }
+
+  return jwt.sign(
+    {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "1h",
+      algorithm: "HS256",
+    }
+  );
+}
+
 router.post("/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
@@ -37,28 +56,19 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    if (!process.env.JWT_SECRET) {
-      throw new Error("JWT_SECRET is not configured.");
-    }
-
     const passwordHash = await bcrypt.hash(password, 12);
 
     const result = await pool.query(
       `
       INSERT INTO users (name, email, password_hash)
       VALUES ($1, $2, $3)
-      RETURNING id, name, email
+      RETURNING id, name, email, role
       `,
       [normalizedName, normalizedEmail, passwordHash]
     );
 
     const user = result.rows[0];
-
-    const token = jwt.sign(
-      { sub: user.id, email: user.email },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h", algorithm: "HS256" }
-    );
+    const token = createToken(user);
 
     return res.status(201).json({
       message: "Account created successfully.",
@@ -110,13 +120,9 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    if (!process.env.JWT_SECRET) {
-      throw new Error("JWT_SECRET is not configured.");
-    }
-
     const result = await pool.query(
       `
-      SELECT id, name, email, password_hash
+      SELECT id, name, email, password_hash, role
       FROM users
       WHERE email = $1
       `,
@@ -138,31 +144,22 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    const token = jwt.sign(
-      {
-        sub: user.id,
-        email: user.email,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "1h",
-        algorithm: "HS256",
-      }
-    );
+    const token = createToken(user);
 
-    res.json({
+    return res.json({
       message: "Login successful.",
       token,
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
+        role: user.role,
       },
     });
   } catch (error) {
     console.error("Login failed:", error);
 
-    res.status(500).json({
+    return res.status(500).json({
       message: "Login failed. Please try again later.",
     });
   }
