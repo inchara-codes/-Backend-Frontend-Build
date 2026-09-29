@@ -73,15 +73,40 @@ function App() {
   const [showAdminPage, setShowAdminPage] = useState(false)
   const [adminUsers, setAdminUsers] = useState([])
   const [auditLogs, setAuditLogs] = useState([])
+  const [adminOrders, setAdminOrders] = useState([])
   const [adminPageLoading, setAdminPageLoading] = useState(false)
   const [adminPageError, setAdminPageError] = useState('')
+
   const [updatingRoleId, setUpdatingRoleId] = useState(null)
+
+  const [cart, setCart] = useState({
+    items: [],
+    total: '0.00',
+    itemCount: 0,
+  })
+  const [showCartPage, setShowCartPage] = useState(false)
+  const [showOrdersPage, setShowOrdersPage] = useState(false)
+  const [orders, setOrders] = useState([])
+  const [cartLoading, setCartLoading] = useState(false)
+  const [cartError, setCartError] = useState('')
+  const [cartActionProductId, setCartActionProductId] = useState(null)
+  const [placingOrder, setPlacingOrder] = useState(false)
+  const [orderSuccess, setOrderSuccess] = useState('')
+  const [selectedOrder, setSelectedOrder] = useState(null)
+  const [orderDetailLoading, setOrderDetailLoading] = useState(false)
+
 
   useEffect(() => {
     if (user && token) {
       fetchProducts()
     }
   }, [user, token, page, filters])
+
+  useEffect(() => {
+    if (user && token) {
+      fetchCart()
+    }
+  }, [user, token])
 
   async function handleLogin(event) {
     event.preventDefault()
@@ -519,7 +544,7 @@ function App() {
       setAdminPageLoading(true)
       setAdminPageError('')
 
-      const [usersResponse, logsResponse] = await Promise.all([
+      const [usersResponse, logsResponse, ordersResponse] = await Promise.all([
         fetch(`${API_URL}/admin/users`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -530,14 +555,24 @@ function App() {
             Authorization: `Bearer ${token}`,
           },
         }),
+        fetch(`${API_URL}/admin/orders`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }),
       ])
 
-      const [usersData, logsData] = await Promise.all([
+      const [usersData, logsData, ordersData] = await Promise.all([
         usersResponse.json(),
         logsResponse.json(),
+        ordersResponse.json(),
       ])
 
-      if (usersResponse.status === 401 || logsResponse.status === 401) {
+      if (
+        usersResponse.status === 401 ||
+        logsResponse.status === 401 ||
+        ordersResponse.status === 401
+      ) {
         handleLogout()
         setError('Your session expired. Please sign in again.')
         return
@@ -551,13 +586,20 @@ function App() {
         throw new Error(logsData.message || 'Could not load audit history.')
       }
 
+      if (!ordersResponse.ok) {
+        throw new Error(ordersData.message || 'Could not load customer orders.')
+      }
+
       setAdminUsers(usersData.users)
       setAuditLogs(logsData.logs)
+      setAdminOrders(ordersData.orders)
+
     } catch (error) {
       setAdminPageError(error.message || 'Could not load admin data.')
     } finally {
       setAdminPageLoading(false)
     }
+
   }
 
   function openAdminPage() {
@@ -646,6 +688,238 @@ function App() {
     return log.action
   }
 
+  async function fetchCart() {
+    try {
+      const response = await fetch(`${API_URL}/cart`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (response.status === 401) {
+        handleLogout()
+        setError('Your session expired. Please sign in again.')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not load your cart.')
+      }
+
+      setCart(data)
+    } catch (error) {
+      setCartError(error.message || 'Could not load your cart.')
+    }
+  }
+
+  async function addToCart(productId) {
+    try {
+      setCartActionProductId(productId)
+      setCartError('')
+
+      const response = await fetch(`${API_URL}/cart/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          productId,
+          quantity: 1,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.status === 401) {
+        handleLogout()
+        setError('Your session expired. Please sign in again.')
+        return
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not add product to cart.')
+      }
+
+      await fetchCart()
+    } catch (error) {
+      setCartError(error.message || 'Could not add product to cart.')
+    } finally {
+      setCartActionProductId(null)
+    }
+  }
+
+  async function updateCartQuantity(productId, quantity) {
+    if (quantity < 1 || quantity > 99) return
+
+    try {
+      setCartActionProductId(productId)
+      setCartError('')
+
+      const response = await fetch(
+        `${API_URL}/cart/items/${productId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ quantity }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not update quantity.')
+      }
+
+      await fetchCart()
+    } catch (error) {
+      setCartError(error.message || 'Could not update quantity.')
+    } finally {
+      setCartActionProductId(null)
+    }
+  }
+
+  async function removeFromCart(productId) {
+    try {
+      setCartActionProductId(productId)
+      setCartError('')
+
+      const response = await fetch(
+        `${API_URL}/cart/items/${productId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not remove product from cart.')
+      }
+
+      await fetchCart()
+    } catch (error) {
+      setCartError(error.message || 'Could not remove product from cart.')
+    } finally {
+      setCartActionProductId(null)
+    }
+  }
+
+  async function placeOrder() {
+    if (cart.items.length === 0) return
+
+    if (!window.confirm('Place this order?')) return
+
+    try {
+      setPlacingOrder(true)
+      setCartError('')
+      setOrderSuccess('')
+
+      const response = await fetch(`${API_URL}/cart/checkout`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not place order.')
+      }
+
+      setOrderSuccess(
+        `Order #${data.order.id} placed successfully with ${data.itemCount} item(s).`
+      )
+
+      await fetchCart()
+    } catch (error) {
+      setCartError(error.message || 'Could not place order.')
+    } finally {
+      setPlacingOrder(false)
+    }
+  }
+
+  async function openOrdersPage() {
+    try {
+      setCartLoading(true)
+      setCartError('')
+      setShowCartPage(false)
+      setShowOrdersPage(true)
+
+      const response = await fetch(`${API_URL}/orders`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not load your orders.')
+      }
+
+      setOrders(data.orders)
+    } catch (error) {
+      setCartError(error.message || 'Could not load your orders.')
+    } finally {
+      setCartLoading(false)
+    }
+  }
+
+  async function openOrderDetail(orderId) {
+    try {
+      setOrderDetailLoading(true)
+      setCartError('')
+      setSelectedOrder(null)
+
+      const response = await fetch(`${API_URL}/orders/${orderId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Could not load order details.')
+      }
+
+      setSelectedOrder(data)
+    } catch (error) {
+      setCartError(error.message || 'Could not load order details.')
+    } finally {
+      setOrderDetailLoading(false)
+    }
+  }
+
+  function openCartPage() {
+    setSelectedProduct(null)
+    setShowCreateForm(false)
+    setShowEditForm(false)
+    setShowAdminPage(false)
+    setShowOrdersPage(false)
+    setShowCartPage(true)
+    setOrderSuccess('')
+    fetchCart()
+  }
+
+  function getCartQuantity(productId) {
+    const cartItem = cart.items.find(
+      (item) => String(item.product_id) === String(productId)
+    )
+
+    return cartItem ? cartItem.quantity : 0
+  }
+
   function handleLogout() {
     localStorage.removeItem('user')
     localStorage.removeItem('token')
@@ -658,6 +932,12 @@ function App() {
     setShowAdminPage(false)
     setAdminUsers([])
     setAuditLogs([])
+    setCart({ items: [], total: '0.00', itemCount: 0 })
+    setShowCartPage(false)
+    setShowOrdersPage(false)
+    setOrders([])
+    setCartError('')
+    setOrderSuccess('')
   }
 
   function goToPreviousPage() {
@@ -750,6 +1030,295 @@ function App() {
               : 'New here? Create an account'}
           </button>
         </form>
+      </main>
+    )
+  }
+
+
+  if (showOrdersPage) {
+    return (
+      <main className="products-page">
+        <header className="products-header">
+          <div>
+            <h1>My orders</h1>
+            <p>View your placed orders and their details.</p>
+          </div>
+
+          <div className="header-actions">
+            <button
+              className="back-to-products-button"
+              type="button"
+              onClick={() => {
+                setShowOrdersPage(false)
+                setSelectedOrder(null)
+              }}
+            >
+              Back to products
+            </button>
+
+            <button type="button" onClick={handleLogout}>
+              Sign out
+            </button>
+          </div>
+        </header>
+
+        {cartError && <p className="error-message">{cartError}</p>}
+
+        {cartLoading && <p>Loading orders...</p>}
+
+        {!cartLoading && !selectedOrder && orders.length === 0 && (
+          <section className="empty-cart">
+            <h2>No orders yet</h2>
+            <p>Products you place from your cart will appear here.</p>
+
+            <button
+              type="button"
+              onClick={() => setShowOrdersPage(false)}
+            >
+              Browse products
+            </button>
+          </section>
+        )}
+
+        {!cartLoading && !selectedOrder && orders.length > 0 && (
+          <section className="orders-list">
+            {orders.map((order) => (
+              <article className="order-card" key={order.id}>
+                <div>
+                  <h2>Order #{order.id}</h2>
+                  <p>
+                    Placed:{' '}
+                    {new Date(order.created_at).toLocaleString(undefined, {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      timeZoneName: 'short',
+                    })}
+                  </p>
+                </div>
+
+                <div className="order-card-summary">
+                  <p>
+                    {order.item_count} item
+                    {Number(order.item_count) === 1 ? '' : 's'}
+                  </p>
+
+                  <strong>
+                    ${Number(order.total_amount).toFixed(2)}
+                  </strong>
+
+                  <button
+                    type="button"
+                    onClick={() => openOrderDetail(order.id)}
+                  >
+                    View details
+                  </button>
+                </div>
+              </article>
+            ))}
+          </section>
+        )}
+
+        {orderDetailLoading && <p>Loading order details...</p>}
+
+        {selectedOrder && (
+          <section className="order-detail">
+            <button
+              className="back-button"
+              type="button"
+              onClick={() => setSelectedOrder(null)}
+            >
+              ← Back to orders
+            </button>
+
+            <h2>Order #{selectedOrder.order.id}</h2>
+
+            <p className="order-time">
+              Placed:{' '}
+              {new Date(selectedOrder.order.created_at).toLocaleString(
+                undefined,
+                {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  timeZoneName: 'short',
+                }
+              )}
+            </p>
+
+            <div className="order-detail-items">
+              {selectedOrder.items.map((item) => (
+                <div className="order-detail-item" key={item.id}>
+                  <div>
+                    <h3>{item.product_name}</h3>
+                    <p>
+                      ${Number(item.product_price).toFixed(2)} × {item.quantity}
+                    </p>
+                  </div>
+
+                  <strong>
+                    ${Number(item.line_total).toFixed(2)}
+                  </strong>
+                </div>
+              ))}
+            </div>
+
+            <p className="order-detail-total">
+              Total: ${Number(selectedOrder.order.total_amount).toFixed(2)}
+            </p>
+          </section>
+        )}
+      </main>
+    )
+  }
+
+  if (showCartPage) {
+    return (
+      <main className="products-page">
+        <header className="products-header">
+          <div>
+            <h1>Your cart</h1>
+            <p>
+              {cart.itemCount} item{cart.itemCount === 1 ? '' : 's'} in your cart
+            </p>
+          </div>
+
+          <div className="header-actions">
+            <button
+              className="back-to-products-button"
+              type="button"
+              onClick={() => setShowCartPage(false)}
+            >
+              Back to products
+            </button>
+
+            <button type="button" onClick={handleLogout}>
+              Sign out
+            </button>
+          </div>
+        </header>
+
+        {cartError && <p className="error-message">{cartError}</p>}
+
+        {orderSuccess && <p className="success-message">{orderSuccess}</p>}
+
+        {cart.items.length === 0 ? (
+          <section className="empty-cart">
+            <h2>Your cart is empty</h2>
+            <p>Add products from the catalogue to place an order.</p>
+
+            <button type="button" onClick={() => setShowCartPage(false)}>
+              Browse products
+            </button>
+          </section>
+        ) : (
+          <section className="cart-layout">
+            <div className="cart-items">
+              {cart.items.map((item) => (
+                <article className="cart-item" key={item.product_id}>
+                  <img
+                    src={getProductImageUrl(item.image_url)}
+                    alt={item.name}
+                    onError={(event) => {
+                      event.currentTarget.src =
+                        'https://placehold.co/160x120?text=No+image'
+                    }}
+                  />
+
+                  <div className="cart-item-details">
+                    <h2>{item.name}</h2>
+                    <p>${Number(item.price).toFixed(2)} each</p>
+                    <strong>
+                      Line total: ${Number(item.line_total).toFixed(2)}
+                    </strong>
+                  </div>
+
+                  <div className="cart-item-actions">
+                    <div className="quantity-controls">
+                      <button
+                        type="button"
+                        aria-label={`Decrease quantity of ${item.name}`}
+                        disabled={
+                          item.quantity === 1 ||
+                          String(cartActionProductId) ===
+                          String(item.product_id)
+                        }
+                        onClick={() =>
+                          updateCartQuantity(
+                            item.product_id,
+                            item.quantity - 1
+                          )
+                        }
+                      >
+                        −
+                      </button>
+
+                      <span>{item.quantity}</span>
+
+                      <button
+                        type="button"
+                        aria-label={`Increase quantity of ${item.name}`}
+                        disabled={
+                          item.quantity === 99 ||
+                          String(cartActionProductId) ===
+                          String(item.product_id)
+                        }
+                        onClick={() =>
+                          updateCartQuantity(
+                            item.product_id,
+                            item.quantity + 1
+                          )
+                        }
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="remove-cart-item-button"
+                      disabled={
+                        String(cartActionProductId) ===
+                        String(item.product_id)
+                      }
+                      onClick={() => removeFromCart(item.product_id)}
+                    >
+                      {String(cartActionProductId) ===
+                        String(item.product_id)
+                        ? 'Updating...'
+                        : 'Remove'}
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <aside className="cart-summary">
+              <h2>Order summary</h2>
+              <p>
+                Items <strong>{cart.itemCount}</strong>
+              </p>
+              <p className="cart-total">
+                Total <strong>${Number(cart.total).toFixed(2)}</strong>
+              </p>
+
+              <button
+                type="button"
+                className="place-order-button"
+                disabled={placingOrder}
+                onClick={placeOrder}
+              >
+                {placingOrder ? 'Placing order...' : 'Place order'}
+              </button>
+            </aside>
+          </section>
+        )}
       </main>
     )
   }
@@ -903,6 +1472,84 @@ function App() {
                 </ul>
               )}
             </section>
+            <section className="admin-section">
+              <div className="admin-section-heading">
+                <div>
+                  <h2>Customer orders</h2>
+                  <p>
+                    View every order placed by users.
+                  </p>
+                </div>
+              </div>
+
+              {adminOrders.length === 0 ? (
+                <p>No customer orders have been placed yet.</p>
+              ) : (
+                <div className="admin-orders-list">
+                  {adminOrders.map((order) => (
+                    <details className="admin-order-card" key={order.id}>
+                      <summary>
+                        <div>
+                          <strong>Order #{order.id}</strong>
+                          <p>
+                            {order.customer_name} · {order.customer_email}
+                          </p>
+                        </div>
+
+                        <div className="admin-order-summary">
+                          <span>
+                            {order.item_count} item
+                            {Number(order.item_count) === 1 ? '' : 's'}
+                          </span>
+
+                          <strong>
+                            ${Number(order.total_amount).toFixed(2)}
+                          </strong>
+                        </div>
+                      </summary>
+
+                      <div className="admin-order-details">
+                        <p>
+                          <strong>Placed:</strong>{' '}
+                          {new Date(order.created_at).toLocaleString(
+                            undefined,
+                            {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                              timeZoneName: 'short',
+                            }
+                          )}
+                        </p>
+
+                        <h3>Items</h3>
+
+                        <ul>
+                          {order.items.map((item) => (
+                            <li key={item.id}>
+                              <span>
+                                {item.productName} × {item.quantity}
+                              </span>
+
+                              <strong>
+                                $
+                                {(
+                                  Number(item.productPrice) *
+                                  Number(item.quantity)
+                                ).toFixed(2)}
+                              </strong>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </section>
           </>
         )}
       </main>
@@ -918,6 +1565,26 @@ function App() {
         </div>
 
         <div className="header-actions">
+
+          {!isAdmin && (
+            <>
+              <button
+                className="orders-button"
+                type="button"
+                onClick={openOrdersPage}
+              >
+                My orders
+              </button>
+
+              <button
+                className="cart-button"
+                type="button"
+                onClick={openCartPage}
+              >
+                Cart ({cart.itemCount})
+              </button>
+            </>
+          )}
 
           {isAdmin && (
             <button
@@ -1128,6 +1795,62 @@ function App() {
                 Added:{' '}
                 {new Date(selectedProduct.created_at).toLocaleDateString()}
               </p>
+
+              {!isAdmin && (
+                <>
+
+                  {getCartQuantity(selectedProduct.id) === 0 ? (
+                    <button
+                      type="button"
+                      className="add-to-cart-button detail-add-to-cart-button"
+                      disabled={
+                        String(cartActionProductId) === String(selectedProduct.id)
+                      }
+                      onClick={() => addToCart(selectedProduct.id)}
+                    >
+                      {String(cartActionProductId) === String(selectedProduct.id)
+                        ? 'Adding...'
+                        : 'Add to cart'}
+                    </button>
+                  ) : (
+                    <div className="quantity-controls detail-quantity-controls">
+                      <button
+                        type="button"
+                        disabled={
+                          String(cartActionProductId) === String(selectedProduct.id)
+                        }
+                        onClick={() => {
+                          const currentQuantity = getCartQuantity(selectedProduct.id)
+
+                          if (currentQuantity === 1) {
+                            removeFromCart(selectedProduct.id)
+                          } else {
+                            updateCartQuantity(
+                              selectedProduct.id,
+                              currentQuantity - 1
+                            )
+                          }
+                        }}
+                      >
+                        −
+                      </button>
+
+                      <span>{getCartQuantity(selectedProduct.id)}</span>
+
+                      <button
+                        type="button"
+                        disabled={
+                          String(cartActionProductId) === String(selectedProduct.id)
+                        }
+                        onClick={() => addToCart(selectedProduct.id)}
+                      >
+                        +
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+
               {isAdmin && (
                 <div className="admin-product-actions">
                   <button
@@ -1260,6 +1983,7 @@ function App() {
                       <p>${Number(product.price).toFixed(2)}</p>
                     </div>
                   </button>
+
                 </article>
               ))}
             </section>

@@ -2,7 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
-
+const cartRoutes = require("../routes/cart");
+const orderRoutes = require("../routes/order");
 
 require("dotenv").config();
 
@@ -31,6 +32,9 @@ app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 app.use("/auth", authRoutes);
 app.use("/products", authMiddleware, productsRouter);
 app.use("/admin", authMiddleware, adminRoutes);
+
+app.use("/cart", authMiddleware, cartRoutes);
+app.use("/orders", authMiddleware, orderRoutes);
 
 app.get("/health", (req, res) => {
   res.status(200).json({
