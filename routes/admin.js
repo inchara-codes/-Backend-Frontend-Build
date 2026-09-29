@@ -236,4 +236,51 @@ router.get("/audit-logs", async (req, res) => {
   }
 });
 
+// GET all customer orders for the admin panel
+router.get("/orders", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        orders.id,
+        orders.total_amount,
+        orders.created_at,
+        users.name AS customer_name,
+        users.email AS customer_email,
+        COALESCE(SUM(order_items.quantity), 0)::int AS item_count,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', order_items.id,
+              'productName', order_items.product_name,
+              'productPrice', order_items.product_price,
+              'quantity', order_items.quantity
+            )
+            ORDER BY order_items.id
+          ) FILTER (WHERE order_items.id IS NOT NULL),
+          '[]'::json
+        ) AS items
+      FROM orders
+      INNER JOIN users ON users.id = orders.user_id
+      LEFT JOIN order_items ON order_items.order_id = orders.id
+      GROUP BY
+        orders.id,
+        orders.total_amount,
+        orders.created_at,
+        users.name,
+        users.email
+      ORDER BY orders.created_at DESC
+    `);
+
+    return res.json({
+      orders: result.rows,
+    });
+  } catch (error) {
+    console.error("Failed to fetch admin orders:", error);
+
+    return res.status(500).json({
+      message: "Failed to fetch orders.",
+    });
+  }
+});
+
 module.exports = router;
