@@ -1,6 +1,6 @@
 # Product Catalogue
 
-A full-stack product catalogue application built with React, Express, PostgreSQL, Neon, and Cloudinary.
+A full-stack product catalogue and ordering application built with React, Express, PostgreSQL, Neon, Cloudinary, and Render.
 
 ## Live Demo
 
@@ -8,23 +8,41 @@ A full-stack product catalogue application built with React, Express, PostgreSQL
 - Backend API: https://product-catalogue-api-aiqj.onrender.com
 - API health check: https://product-catalogue-api-aiqj.onrender.com/health
 
-> The free Render backend may take up to a minute to respond after inactivity.
+> The free Render backend can take up to a minute to respond after inactivity.
 
 ## Features
 
-- Email and password login
-- JWT authentication for protected product routes
+### Users
+
+- User registration and login
+- Password hashing with `bcrypt`
+- JWT authentication
+- Protected routes
 - Automatic sign-out when a session expires
-- Product list with pagination
-- Product search by name
-- Minimum and maximum price filters
+- Product search, price filters, pagination, loading states, and error states
 - Product detail page
-- Create a product with image upload
-- Cloudinary image storage
-- Loading skeletons, empty states, and error states
+- Add products to cart
+- Increase or decrease cart quantity
+- Remove products from cart
+- Place an order
+- View order number, items, total, and exact order time
+
+### Admins
+
+- Only admins can create, edit, and delete products
+- Only admins can upload product images
+- Admin panel to grant or remove admin access
+- Protected initial admin account
+- Admin audit log for product and role changes
+- Admin customer-order view
+- View customer name, email, products, quantities, total price, and order time
+
+### Product Images
+
+- Cloudinary image upload and storage
+- JPEG, PNG, and WebP uploads
+- File-size validation
 - Broken-image fallback
-- Responsive desktop and mobile layout
-- API integration tests
 
 ## Tech Stack
 
@@ -45,23 +63,24 @@ A full-stack product catalogue application built with React, Express, PostgreSQL
 - Multer
 - JSON Web Tokens (`jsonwebtoken`)
 - `bcrypt`
-- Faker
+- `pg`
 - `node-pg-migrate`
+- Faker
 - Supertest
 - Render Web Service
 
 ## Prerequisites
 
-Install these before running the project locally:
+Install the following before running the project locally:
 
 - Node.js
 - npm
 - PostgreSQL, or a Neon PostgreSQL database
-- A Cloudinary account for image uploads
+- Cloudinary account for product image uploads
 
 ## Installation
 
-Clone the repository and enter the project folder:
+Clone the repository:
 
 ```bash
 git clone https://github.com/inchara-codes/-Backend-Frontend-Build.git
@@ -76,7 +95,7 @@ npm install
 
 ## Environment Variables
 
-Create a `.env` file in the project root. Never commit this file.
+Create a `.env` file in the project root.
 
 ```env
 # Backend
@@ -84,8 +103,7 @@ PORT=3000
 CLIENT_ORIGIN=http://localhost:5173
 JWT_SECRET=replace_with_a_long_random_secret
 
-# Use either DATABASE_URL for Neon/cloud PostgreSQL,
-# or the individual DB values below for local PostgreSQL.
+# Use DATABASE_URL for Neon or another cloud PostgreSQL database
 DATABASE_URL=postgresql://YOUR_DATABASE_CONNECTION_STRING
 
 # Local PostgreSQL connection
@@ -98,21 +116,23 @@ DB_NAME=my_application_db
 # Frontend API URL
 VITE_API_URL=http://localhost:3000
 
-# Cloudinary image storage
+# Cloudinary
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_api_key
 CLOUDINARY_API_SECRET=your_api_secret
 ```
 
+Never commit `.env` because it contains passwords and API secrets.
+
 ## Database Setup
 
-For local PostgreSQL, create the database:
+For local PostgreSQL, create a database:
 
 ```sql
 CREATE DATABASE my_application_db;
 ```
 
-Run the migrations:
+Run all migrations:
 
 ```bash
 npm run migrate
@@ -128,25 +148,25 @@ The seed script creates 25 users and 30 products.
 
 ## Run Locally
 
-Start the Express backend:
+Start the backend:
 
 ```bash
 npm run dev
 ```
 
-The backend runs on:
+The backend runs at:
 
 ```text
 http://localhost:3000
 ```
 
-Open a second terminal in the same project folder and start the React frontend:
+Open a second terminal in the same project folder and start the frontend:
 
 ```bash
 npx vite
 ```
 
-Open the Vite URL shown in the terminal, usually:
+Open the URL shown by Vite, normally:
 
 ```text
 http://localhost:5173
@@ -159,48 +179,134 @@ Email: test@example.com
 Password: password123
 ```
 
+You can also create a regular user account from the registration screen.
+
+## Roles and Permissions
+
+| Action | Regular user | Admin |
+| --- | --- | --- |
+| Browse products | Yes | Yes |
+| Search and filter products | Yes | Yes |
+| Add products to cart | Yes | No |
+| Place orders | Yes | No |
+| View personal orders | Yes | No |
+| Create products | No | Yes |
+| Edit products | No | Yes |
+| Delete products | No | Yes |
+| Upload product images | No | Yes |
+| Manage user roles | No | Yes |
+| View all customer orders | No | Yes |
+| View admin audit history | No | Yes |
+
+The protected initial admin email is configured in:
+
+```text
+routes/admin.js
+```
+
 ## API Endpoints
 
-All `/products` endpoints require a JWT bearer token unless stated otherwise.
-
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| POST | `/auth/login` | Log in and receive a JWT |
-| GET | `/products?page=1&limit=8` | Get paginated products |
-| GET | `/products?search=chair` | Search products by name |
-| GET | `/products?minPrice=100&maxPrice=500` | Filter products by price |
-| GET | `/products/:id` | Get one product by ID |
-| POST | `/products` | Create a product with an uploaded image |
-| GET | `/health` | Check API health |
-| GET | `/test-db` | Verify database connectivity |
-
-## Example Protected Request
+All endpoints except login, registration, health check, and database check require a JWT token.
 
 ```http
 Authorization: Bearer YOUR_JWT_TOKEN
 ```
+
+### Authentication
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| POST | `/auth/register` | Create a regular user account and receive a JWT |
+| POST | `/auth/login` | Sign in and receive a JWT |
+
+### Products
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| GET | `/products?page=1&limit=8` | Signed-in user | Get paginated products |
+| GET | `/products?search=chair` | Signed-in user | Search products by name |
+| GET | `/products?minPrice=100&maxPrice=500` | Signed-in user | Filter products by price |
+| GET | `/products/:id` | Signed-in user | Get one product |
+| POST | `/products` | Admin | Create a product with an image |
+| PUT | `/products/:id` | Admin | Update a product and optionally replace its image |
+| DELETE | `/products/:id` | Admin | Delete a product |
+
+### Cart
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| GET | `/cart` | Get the signed-in user's cart |
+| POST | `/cart/items` | Add a product to the cart |
+| PATCH | `/cart/items/:productId` | Update a cart item quantity |
+| DELETE | `/cart/items/:productId` | Remove an item from the cart |
+| POST | `/cart/checkout` | Place an order from the current cart |
+
+### Orders
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| GET | `/orders` | Signed-in user | Get the user's order history |
+| GET | `/orders/:id` | Signed-in user | Get one of the user's orders |
+| GET | `/admin/orders` | Admin | Get all customer orders |
+
+### Admin
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| GET | `/admin/users` | Get all users and roles |
+| PATCH | `/admin/users/:id/role` | Grant or remove admin access |
+| GET | `/admin/audit-logs` | Get admin activity history |
+
+### System
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| GET | `/health` | Check whether the API is running |
+| GET | `/test-db` | Verify database connectivity |
+
+## Database Design
+
+| Table | Purpose |
+| --- | --- |
+| `users` | Stores accounts, password hashes, and roles |
+| `products` | Stores product information and Cloudinary image URLs |
+| `cart_items` | Stores each user's current cart items and quantities |
+| `orders` | Stores placed orders, totals, and order time |
+| `order_items` | Stores a permanent product and price snapshot for each order |
+| `admin_audit_logs` | Stores admin actions and timestamps |
+| `pgmigrations` | Tracks completed database migrations |
+
+`order_items` stores the product name and price at checkout time. This means an order remains accurate even if an admin later edits or deletes the product.
 
 ## Available Scripts
 
 | Command | Description |
 | --- | --- |
 | `npm run dev` | Start the backend with Nodemon |
-| `npm run start` | Start the backend normally |
-| `npm run build` | Create a production frontend build |
+| `npm start` | Start the backend with Node |
+| `npm run build` | Create a production React build |
 | `npm test` | Run API integration tests |
-| `npm run migrate` | Run database migrations |
+| `npm run migrate` | Run pending database migrations |
 | `npm run migrate:down` | Undo the latest migration |
 | `npm run seed` | Seed sample users and products |
 
 ## Tests
 
-Run the API test suite:
+Run the test suite:
 
 ```bash
 npm test
 ```
 
-The tests cover authentication, protected routes, pagination, invalid product IDs, invalid price ranges, and required image validation.
+The current API tests cover:
+
+- Login and JWT creation
+- Invalid login validation
+- Protected product routes
+- Product pagination
+- Invalid product IDs
+- Invalid price ranges
+- Required image validation
 
 ## Deployment
 
@@ -222,15 +328,15 @@ CLOUDINARY_API_SECRET
 
 ### Frontend
 
-The React application is deployed as a Render Static Site.
+The React frontend is deployed as a Render Static Site.
 
-Required frontend environment variable:
+Required environment variable:
 
 ```text
 VITE_API_URL=https://product-catalogue-api-aiqj.onrender.com
 ```
 
-The frontend must be rebuilt and redeployed after changing `VITE_API_URL`.
+Render must rebuild the frontend whenever `VITE_API_URL` changes.
 
 ## Project Structure
 
@@ -239,23 +345,28 @@ Backend/
 ├── config/
 │   └── cloudinary.js          Cloudinary configuration
 ├── middleware/
-│   ├── authMiddleware.js      JWT authentication middleware
-│   └── upload.js              Multer upload configuration
-├── migrations/                PostgreSQL migration files
+│   ├── adminMiddleware.js     Admin permission check
+│   ├── authMiddleware.js      JWT authentication check
+│   └── upload.js              Multer upload validation
+├── migrations/                Database migration files
 ├── routes/
-│   ├── auth.js                Login route
-│   └── products.js            Product API routes
+│   ├── admin.js               Admin users, audit logs, and customer orders
+│   ├── auth.js                Registration and login routes
+│   ├── cart.js                Cart and checkout routes
+│   ├── order.js               Personal order-history routes
+│   └── products.js            Product management routes
 ├── scripts/
 │   └── seed.js                Sample data seed script
 ├── src/
 │   ├── App.jsx                React application
 │   ├── App.css                Component styling
-│   ├── index.css              Global styling
-│   ├── main.jsx               React entry point
 │   ├── db.js                  PostgreSQL connection
-│   └── server.js              Express server
+│   ├── main.jsx               React entry point
+│   └── server.js              Express server setup
 ├── test/
 │   └── api.test.js            API integration tests
+├── utils/
+│   └── audit.js               Admin audit-log helper
 ├── .env.example               Environment-variable template
 ├── package.json
 └── README.md
@@ -263,10 +374,11 @@ Backend/
 
 ## Future Improvements
 
-- User registration
-- Edit and delete product functionality
+- Payment integration
+- Product stock and inventory management
 - Product categories and sorting
-- Admin roles and permissions
+- Email confirmation after registration
 - Password reset flow
-- More API and frontend tests
-- CI/CD workflow with GitHub Actions
+- Order status tracking
+- More frontend and API tests
+- GitHub Actions CI/CD pipeline
