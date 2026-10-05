@@ -22,7 +22,9 @@ router.get("/users", async (req, res) => {
     created_at,
     email = $1 AS is_initial_admin
   FROM users
-  ORDER BY ASC
+  ORDER BY
+    CASE WHEN role = 'admin' THEN 0 ELSE 1 END,
+    name ASC
   `,
   [INITIAL_ADMIN_EMAIL]
 );
